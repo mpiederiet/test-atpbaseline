@@ -4,7 +4,6 @@ Set-PSdebug -Strict
 [Version]$Script:TestATPBaselineVersion='1.0'
 [Version]$Script:BasedOnORCAVersion='1.3.2'
 $Script:PreloadedCommands=New-Object System.Collections.ArrayList
-$Script:TestDefinitions=New-Object System.Collections.ArrayList
 
 <#
     ATPBaseLineCheck definition
@@ -518,6 +517,9 @@ Function Test-ATPBaseline (
     })]
     [System.IO.FileInfo]$InputPath) {
     $MainTitle='ATP Baseline Test'
+
+    $Script:TestDefinitions=New-Object System.Collections.ArrayList
+
     # The ORCA checks in this module are based on the ORCA PSGallery module. If there is a newer version available, make sure that the definitions used are kept up to date by the author ;-)
     Write-Progress -Activity $MainTitle -Status 'Checking ORCA version'
     $ORCAGalleryVersion=Test-ORCAVersion
@@ -595,7 +597,7 @@ Function Test-ATPBaseline (
         }
     }
 
-    if ($Script:TestDefinitions|Where-Object {$_.TestResult.Count -gt 0}) {
+    if ($Script:TestDefinitions|Where-Object {($null -ne $_.TestResult) -and $_.TestResult.Count -gt 0}) {
         # Generate HTML Output
         Write-Progress -Activity $MainTitle -Status "Generating HTML output"
         $Tenant=(($Script:AcceptedDomain | Where-Object {$_.InitialDomain -eq $True}).DomainName -split '\.')[0]
