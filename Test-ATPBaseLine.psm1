@@ -197,14 +197,16 @@ Function New-HtmlOutput {
     # Area icons
     $AreaIcon=@{}
     $AreaIcon['Default']='fas fa-user-cog'
-    $AreaIcon['Content Filter Policies']='fas fa-scroll'
-    $AreaIcon['Malware Filter Policy']='fas fa-biohazard'
-    $AreaIcon['Zero Hour Autopurge']='fas fa-trash'
-    $AreaIcon['DKIM']='fas fa-file-signature'
-    $AreaIcon['Transport Rules']='fas fa-list'
-    $AreaIcon['Tenant Settings']='fas fa-users-cog'
-    $AreaIcon['Advanced Threat Protection Policies']='fas fa-user-shield'
-    $AreaIcon['Microsoft Defender ATP Baseline']='fas fa-tasks'
+
+    if (Test-Path '.\AreaIcons.json') {
+        try {
+            $AreaIcon=Get-Content .\AreaIcons.json|ConvertFrom-Json|ConvertTo-Hashtable
+        }
+        catch {
+            # An error occured while loading the AreaIcons JSON mapping file
+            Write-Warning "An error occured while attempting to load AreaIcons.json: $_"
+        }
+    }
 
     # Output start
     $output="<!doctype html>
