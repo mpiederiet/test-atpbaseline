@@ -18,7 +18,7 @@ Add-TestDefinition -TestDefinition $TestDefinition
 $Return = New-Object System.Collections.ArrayList
 
 Function Get-DefenderATPTemplates {
-    Return ($deviceManagement_templates.value | Where-Object {$_.templateType -eq 'advancedThreatProtectionSecurityBaseline'})
+    Return ($deviceManagement_templates | Where-Object {$_.templateType -eq 'advancedThreatProtectionSecurityBaseline'})
 }
 
 Function Get-DefenderATPPolicies {
@@ -28,7 +28,7 @@ Function Get-DefenderATPPolicies {
     if ($null -ne $Templates) {
         ForEach ($Template in $Templates) {
             $ATPTemplateID=$Template.id
-            $ATPPolicies=($deviceManagement_intents.Value | Where-Object {$_.templateId -eq $ATPTemplateID})
+            $ATPPolicies=($deviceManagement_intents | Where-Object {$_.templateId -eq $ATPTemplateID})
             ForEach ($ATPPolicy in $ATPPolicies) {
                 $Null=$Result.Add([PSCustomObject][Ordered]@{
                     'Name'=$ATPPolicy.displayName

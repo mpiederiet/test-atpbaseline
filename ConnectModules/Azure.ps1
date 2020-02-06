@@ -21,7 +21,14 @@ Function Invoke-AzureCommands([string[]]$CommandsToPreload) {
     ForEach ($CmdletToLoad in $CommandsToPreload) {
         Write-Verbose "$(Get-Date) Invoking Get-$CmdletToLoad"
         Remove-Variable -Scope 'Script' -Name $CmdletToLoad -ErrorAction SilentlyContinue
-        New-Variable -Scope 'Script' -Name $CmdletToLoad -Value (Invoke-Expression "Get-$CmdletToLoad")
+        New-Variable -Scope 'Script' -Name $CmdletToLoad -Value (New-Object System.Collections.ArrayList)
+        ForEach ($Subscription in $Script:SubscriptionsToCheck) {
+            $AzContext=Get-AzContext
+            if ($AzContext.Subscription -ne $Subscription.SubscriptionId) {
+                Set-AzContext -SubscriptionId $Subscription.SubscriptionId
+            }
+            (Get-Variable -Scope 'Script' -Name $CmdletToLoad).Value.AddRange(@(Invoke-Expression "Get-$CmdletToLoad"))
+        }
         $Null=$script:PreloadedCommands.Add($CmdletToLoad)
     }
 }
@@ -31,9 +38,16 @@ If ((Get-AzureConnectionStatus) -eq $False) {
     Invoke-AzureConnection
 }
 $Script:AzureSubscriptions=Get-AzSubscription
-$Script:ActiveAzureSubscriptions=$AzureSubscriptions|Where-Object{$_.State -eq 'Enabled'}
 $Script:AzContext=Get-AzContext
-$Script:CurrentAzureSubscription=$AzureSubscriptions|Where-Object{$_.SubscriptionId -eq (($AzContext).Subscription)}
-# Show a dialog to select the Azure subscriptions to check
-$SelectedSubscriptions=New-ListboxDialog -FormTitle 'Please select the Azure subscription(s) to be checked' -ListItems ($ActiveAzureSubscriptions|Select-Object -Expand Name) -Explanation 'Please select the Azure subscription(s) to be checked' -DefaultItem $CurrentAzureSubscription.Name
-$Script:SubscriptionsToCheck=$AzureSubscriptions|Where-Object {$_.Name -in $SelectedSubscriptions}
+if ($null -eq $Script:AzureSubscriptions) {
+    Write-Warning "No Azure subscriptions found for $(($Script:AzContext).Account)"
+    $Script:ActiveAzureSubscriptions=@()
+    $Script:CurrentAzureSubscription=$null
+    $Script:SubscriptionsToCheck=@()
+} Else {
+    $Script:ActiveAzureSubscriptions=$AzureSubscriptions|Where-Object{$_.State -eq 'Enabled'}
+    $Script:CurrentAzureSubscription=$AzureSubscriptions|Where-Object{$_.SubscriptionId -eq (($AzContext).Subscription)}
+    # Show a dialog to select the Azure subscriptions to check
+    $SelectedSubscriptions=New-ListboxDialog -FormTitle 'Please select the Azure subscription(s) to be checked' -ListItems ($ActiveAzureSubscriptions|Select-Object -Expand Name) -Explanation 'Please select the Azure subscription(s) to be checked' -DefaultItem $CurrentAzureSubscription.Name
+    $Script:SubscriptionsToCheck=$AzureSubscriptions|Where-Object {$_.Name -in $SelectedSubscriptions}
+}

@@ -46,10 +46,8 @@ function Invoke-GraphRequest {
         $Url = $graphURL + "/" + $Url.TrimStart('/')
     }
 
-    Invoke-MSGraphRequest -Url $Url -HttpMethod $HttpMethod.ToUpper() @params -ErrorAction SilentlyContinue
-    if($? -eq $false) {
-        throw $global:error[0]
-    }
+    # Don't handle exceptions here, but handle them in the calling function
+    Invoke-MSGraphRequest -Url $Url -HttpMethod $HttpMethod.ToUpper() @params
 }
 
 Function Invoke-IntuneGraphCommands([string[]]$CommandsToPreload) {
@@ -59,7 +57,18 @@ Function Invoke-IntuneGraphCommands([string[]]$CommandsToPreload) {
         Write-Verbose "$(Get-Date) Invoking $GraphModuleToLoad"
         $VariableName=($GraphModuleToLoad.TrimStart('/') -replace '/','_')
         Remove-Variable -scope 'Script' -Name $VariableName -ErrorAction SilentlyContinue
-        New-Variable -scope 'Script' -Name $VariableName -Value (Invoke-GraphRequest -Url $GraphModuleToLoad)
+        try {
+            New-Variable -scope 'Script' -Name $VariableName -Value (Invoke-GraphRequest -Url $GraphModuleToLoad).Value
+        }
+        catch {
+            # Handle 401 Unauthorized response
+            if ($_.Exception.Message -match '^401') {
+                Write-Warning "Could not connect to Graph endpoint $GraphModuleToLoad. Please ensure you have the proper permissions to run this report."
+                New-Variable -Scope 'Script' -Name $VariableName -Value @()            
+            } Else {
+                Throw $_
+            }
+        }
         $Null=$script:PreloadedCommands.Add($VariableName)
     }
 }

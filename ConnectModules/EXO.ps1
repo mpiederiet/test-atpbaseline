@@ -38,7 +38,17 @@ Function Invoke-EXOCommands([string[]]$CommandsToPreload) {
     ForEach ($CmdletToLoad in $CommandsToPreload) {
         Write-Verbose "$(Get-Date) Invoking Get-$CmdletToLoad"
         Remove-Variable -Scope 'Script' -Name $CmdletToLoad -ErrorAction SilentlyContinue
-        New-Variable -Scope 'Script' -Name $CmdletToLoad -Value (Invoke-Expression "Get-$CmdletToLoad")
+        try {
+            New-Variable -Scope 'Script' -Name $CmdletToLoad -Value (Invoke-Expression "Get-$CmdletToLoad")
+        }
+        catch {
+            if ($_.Exception -is [System.Management.Automation.CommandNotFoundException]) {
+                Write-Warning "Could not execute EXO command Get-$($CmdletToLoad). Please ensure you have the proper permissions to run this report."
+                New-Variable -Scope 'Script' -Name $CmdletToLoad -Value @()
+            } Else {
+                Throw $_
+            }
+        }
         $Null=$script:PreloadedCommands.Add($CmdletToLoad)
     }
 }

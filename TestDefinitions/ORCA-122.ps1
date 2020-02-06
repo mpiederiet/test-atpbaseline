@@ -14,5 +14,8 @@ $TestDefinition=[ATPBaselineCheck]@{
 }
 
 Add-TestDefinition -TestDefinition $TestDefinition
-
-$TestDefinition.TestResult=$AdminAuditLogConfig.UnifiedAuditLogIngestionEnabled
+if ($null -eq $AdminAuditLogConfig.PSObject.Properties['UnifiedAuditLogIngestionEnabled']) {
+    $TestDefinition.TestResult=$False
+} Else {
+    $TestDefinition.TestResult=$AdminAuditLogConfig.UnifiedAuditLogIngestionEnabled
+}
