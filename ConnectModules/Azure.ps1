@@ -1,4 +1,6 @@
 #Requires -Module 'Az.Accounts'
+# Suppress breaking changes
+Set-Item Env:\SuppressAzurePowerShellBreakingChangeWarnings 'true'
 function Get-AzureConnectionStatus {
     Return ($null -ne (Get-AzContext))
 }
