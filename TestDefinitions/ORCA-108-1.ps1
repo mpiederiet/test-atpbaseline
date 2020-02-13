@@ -26,8 +26,9 @@ ForEach($Domain in $AcceptedDomain) {
         If($null -ne $DkimSigning) {
             # Check DKIM Selector1 Records
             $Selector1=$Null
-            Try { $Selector1 = Resolve-DnsName -Type TXT -Name "selector1._domainkey.$($DkimSigning.Domain)" -ErrorAction:stop } Catch {}
-            if($null -ne $Selector1 -and $Selector1.Type -eq 'CNAME' -and $Selector1.NameHost -eq $DkimSigningConfig.Selector1CNAME) {
+            Try { $Selector1 = Resolve-DnsName -Type ANY -Name "selector1._domainkey.$($DkimSigning.Domain)" -ErrorAction:stop } Catch {}
+            $Selector1=$Selector1|Where-Object{$_.Section -eq 'Answer' -and $_.Type -eq 'CNAME'}
+            if($Selector1.NameHost -eq $DkimSigning.Selector1CNAME) {
                 $Null=$Return.Add([PSCustomObject][Ordered]@{
                     'Domain'=$Domain.Name
                     'DNS Record'="Selector1 CNAME ($($DkimSigning.Selector1CNAME))"
@@ -43,8 +44,9 @@ ForEach($Domain in $AcceptedDomain) {
 
             # Check DKIM Selector2 Records
             $Selector2=$Null
-            Try { $Selector2 = Resolve-DnsName -Type TXT -Name "selector2._domainkey.$($DkimSigning.Domain)" -ErrorAction:stop } Catch {}
-            if($null -ne $Selector2 -and $Selector2.Type -eq 'CNAME' -and $Selector2.NameHost -eq $DkimSigningConfig.Selector2CNAME) {
+            Try { $Selector2 = Resolve-DnsName -Type ANY -Name "selector2._domainkey.$($DkimSigning.Domain)" -ErrorAction:stop } Catch {}
+            $Selector2=$Selector2|Where-Object{$_.Section -eq 'Answer' -and $_.Type -eq 'CNAME'}
+            if($Selector2.NameHost -eq $DkimSigning.Selector2CNAME) {
                 $Null=$Return.Add([PSCustomObject][Ordered]@{
                     'Domain'=$Domain.Name
                     'DNS Record'="Selector2 CNAME ($($DkimSigning.Selector2CNAME))"
