@@ -52,16 +52,16 @@ ForEach($Policy in ($AntiPhishPolicy | Where-Object {$_.Enabled -eq $True})) {
     If($Policy.TargetedDomainProtectionAction -ne 'Quarantine') {
         $Null=$Return.Add([PSCustomObject][Ordered]@{
             'AntiPhish Policy'=$($Policy.Name)
-            'Setting'='Domain Impersonation Action'
+            'Setting'='TargetedDomainProtectionAction'
             'Value'=$Policy.TargetedDomainProtectionAction
             'Result'='Fail'
         })
     } Else {
         $Null=$Return.Add([PSCustomObject][Ordered]@{
             'AntiPhish Policy'=$($Policy.Name)
-            'Setting'='Domain Impersonation Action'
+            'Setting'='TargetedDomainProtectionAction'
             'Value'=$Policy.TargetedDomainProtectionAction
-            'Result'='Fail'
+            'Result'='Pass'
         })
     }
 }
