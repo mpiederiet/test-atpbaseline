@@ -1,5 +1,6 @@
 *.html
 *.global.xml
+*.zip
 AtpBaseline-*.json
 /Scraps
 .vscode
