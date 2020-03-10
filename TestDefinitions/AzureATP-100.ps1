@@ -17,8 +17,8 @@ Add-TestDefinition -TestDefinition $TestDefinition
 
 $Return = New-Object System.Collections.ArrayList
 
-Function Get-AzureStorageBlobs {
-    Return ($AzResource | Where-Object {$_.ResourceType -eq 'Microsoft.Storage/storageAccounts'})
+Function Get-AzureStorageBlobs ($Subscription) {
+    Return ($AzResource[$Subscription] | Where-Object {$_.ResourceType -eq 'Microsoft.Storage/storageAccounts'})
 }
 
 ForEach ($Subscription in $Script:SubscriptionsToCheck) {
@@ -26,7 +26,7 @@ ForEach ($Subscription in $Script:SubscriptionsToCheck) {
     if ($AzContext.Subscription -ne $Subscription.SubscriptionId) {
         Set-AzContext -SubscriptionId $Subscription.SubscriptionId
     }
-    $AzureStorageBlobs=Get-AzureStorageBlobs
+    $AzureStorageBlobs=Get-AzureStorageBlobs -Subscription ($Subscription.Name)
 
     ForEach($StorageBlob in $AzureStorageBlobs) {
         $AzureATP=Get-AzSecurityAdvancedThreatProtection -ResourceId $StorageBlob.ResourceId -ErrorAction SilentlyContinue

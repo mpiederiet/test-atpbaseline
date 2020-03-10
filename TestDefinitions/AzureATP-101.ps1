@@ -17,8 +17,8 @@ Add-TestDefinition -TestDefinition $TestDefinition
 
 $Return = New-Object System.Collections.ArrayList
 
-Function Get-AzureCosmosDB {
-    Return ($AzResource | Where-Object {$_.ResourceType -eq 'Microsoft.DocumentDb/databaseAccounts'})
+Function Get-AzureCosmosDB ($Subscription) {
+    Return ($AzResource[$Subscription] | Where-Object {$_.ResourceType -eq 'Microsoft.DocumentDb/databaseAccounts'})
 }
 
 ForEach ($Subscription in $Script:SubscriptionsToCheck) {
@@ -26,7 +26,7 @@ ForEach ($Subscription in $Script:SubscriptionsToCheck) {
     if ($AzContext.Subscription -ne $Subscription.SubscriptionId) {
         Set-AzContext -SubscriptionId $Subscription.SubscriptionId
     }
-    $CosmosDBs=Get-AzureCosmosDB
+    $CosmosDBs=Get-AzureCosmosDB -Subscription ($Subscription.Name)
 
     ForEach($CosmosDB in $CosmosDBs) {
         $AzureATP=Get-AzSecurityAdvancedThreatProtection -ResourceId $CosmosDB.ResourceId -ErrorAction SilentlyContinue

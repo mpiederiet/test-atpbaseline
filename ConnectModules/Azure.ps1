@@ -21,13 +21,15 @@ Function Invoke-AzureCommands([string[]]$CommandsToPreload) {
     ForEach ($CmdletToLoad in $CommandsToPreload) {
         Write-Verbose "$(Get-Date) Invoking Get-$CmdletToLoad"
         Remove-Variable -Scope 'Script' -Name $CmdletToLoad -ErrorAction SilentlyContinue
-        New-Variable -Scope 'Script' -Name $CmdletToLoad -Value (New-Object System.Collections.ArrayList)
+        # Create a hashtable, store variables for each subscription per key
+        New-Variable -Scope 'Script' -Name $CmdletToLoad -Value (New-Object System.Collections.Hashtable)
         ForEach ($Subscription in $Script:SubscriptionsToCheck) {
+            (Get-Variable -Scope 'Script' -Name $CmdletToLoad).Value[$Subscription.Name]=(New-Object System.Collections.ArrayList)
             $AzContext=Get-AzContext
             if ($AzContext.Subscription -ne $Subscription.SubscriptionId) {
                 Set-AzContext -SubscriptionId $Subscription.SubscriptionId
             }
-            (Get-Variable -Scope 'Script' -Name $CmdletToLoad).Value.AddRange(@(Invoke-Expression "Get-$CmdletToLoad"))
+            (Get-Variable -Scope 'Script' -Name $CmdletToLoad).Value[$Subscription.Name].AddRange(@(Invoke-Expression "Get-$CmdletToLoad"))
         }
         $Null=$script:PreloadedCommands.Add($CmdletToLoad)
     }

@@ -17,8 +17,8 @@ Add-TestDefinition -TestDefinition $TestDefinition
 
 $Return = New-Object System.Collections.ArrayList
 
-Function Get-AzureSQLDB {
-    Return ($AzResource | Where-Object {$_.ResourceType -eq 'Microsoft.Sql/servers/databases'})
+Function Get-AzureSQLDB ($Subscription) {
+    Return ($AzResource[$Subscription] | Where-Object {$_.ResourceType -eq 'Microsoft.Sql/servers/databases'})
 }
 
 ForEach ($Subscription in $Script:SubscriptionsToCheck) {
@@ -26,7 +26,7 @@ ForEach ($Subscription in $Script:SubscriptionsToCheck) {
     if ($AzContext.Subscription -ne $Subscription.SubscriptionId) {
         Set-AzContext -SubscriptionId $Subscription.SubscriptionId
     }
-    $SQLDBs=Get-AzureSQLDB
+    $SQLDBs=Get-AzureSQLDB -Subscription ($Subscription.Name)
 
     ForEach($SQLDB in $SQLDBs) {
         $DatabaseName=($SQLDB.Name.Split('/'))[1]
