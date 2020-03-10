@@ -79,35 +79,44 @@ Function New-ListBoxDialog ([string]$FormTitle,[string]$Explanation,[string[]]$L
 
     $Form = New-Object System.Windows.Forms.Form
     $Form.Text = $FormTitle
-    $Form.Size = New-Object System.Drawing.Size(300,200)
+    $FormSize=New-Object System.Drawing.Size(320,220)
+    $Form.Size = $FormSize
+    $Form.MinimumSize = $FormSize
     $Form.StartPosition = 'CenterScreen'
+    $Form.AutoSize=$False
+    $Form.ShowIcon=$false
+    $Form.FormBorderStyle='Sizable'
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Location = New-Object System.Drawing.Point(10,5)
+    $label.Size = New-Object System.Drawing.Size(280,20)
+    $label.Text = $Explanation
+    $Form.Controls.Add($label)
 
     $OKButton = New-Object System.Windows.Forms.Button
-    $OKButton.Location = New-Object System.Drawing.Point(70,120)
+    $OKButton.Location = New-Object System.Drawing.Point(70,150)
     $OKButton.Size = New-Object System.Drawing.Size(75,23)
     $OKButton.Text = 'OK'
+    $OKButton.Anchor='Left, Bottom'
     $OKButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
     $Form.AcceptButton = $OKButton
     $Form.Controls.Add($OKButton)
 
     $CancelButton = New-Object System.Windows.Forms.Button
-    $CancelButton.Location = New-Object System.Drawing.Point(160,120)
+    $CancelButton.Location = New-Object System.Drawing.Point(160,150)
     $CancelButton.Size = New-Object System.Drawing.Size(75,23)
     $CancelButton.Text = 'Cancel'
+    $CancelButton.Anchor='Left, Bottom'
     $CancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $Form.CancelButton = $CancelButton
     $Form.Controls.Add($CancelButton)
 
-    $label = New-Object System.Windows.Forms.Label
-    $label.Location = New-Object System.Drawing.Point(10,20)
-    $label.Size = New-Object System.Drawing.Size(280,20)
-    $label.Text = $Explanation
-    $Form.Controls.Add($label)
-
     $listBox = New-Object System.Windows.Forms.CheckedListBox
-    $listBox.Location = New-Object System.Drawing.Point(10,40)
-    $listBox.Size = New-Object System.Drawing.Size(260,20)
+    $listBox.Location = New-Object System.Drawing.Point(10,45)
+    $listBox.Size = New-Object System.Drawing.Size(280,100)
     $listbox.CheckOnClick = $True
+    $listbox.AutoSize=$true
+    $ListBox.Anchor='Top, Bottom, Left, Right'
 
     [void] $listBox.Items.AddRange($ListItems)
 
@@ -117,8 +126,30 @@ Function New-ListBoxDialog ([string]$FormTitle,[string]$Explanation,[string[]]$L
         $ListBox.SetItemChecked($ItemIndex,$true)
     }
 
-    $listBox.Height = 70
     $Form.Controls.Add($listBox)
+
+    $label = New-Object System.Windows.Forms.LinkLabel
+    $label.Location = New-Object System.Drawing.Point(10,25)
+    $label.Size = New-Object System.Drawing.Size(70,20)
+    $label.LinkColor = 'green'
+    $label.ActiveLinkColor = 'blue'
+    $label.Text = 'Select all'
+    $label.Add_Click({
+        0..($listBox.Items.Count-1)|ForEach-Object{$ListBox.SetItemChecked($_,$true)}
+      })
+    $Form.Controls.Add($label)
+
+    $label = New-Object System.Windows.Forms.LinkLabel
+    $label.Location = New-Object System.Drawing.Point(100,25)
+    $label.Size = New-Object System.Drawing.Size(70,20)
+    $label.LinkColor = 'red'
+    $label.ActiveLinkColor = 'blue'
+    $label.Text = 'Select none'
+    $label.Add_Click({
+        0..($listBox.Items.Count-1)|ForEach-Object{$ListBox.SetItemChecked($_,$false)}
+      })    
+    $Form.Controls.Add($label)
+
     $Form.Topmost = $true
 
     $Result = $Form.ShowDialog()
