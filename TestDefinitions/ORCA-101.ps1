@@ -3,7 +3,7 @@ $MyFileName=[System.IO.FileInfo]($MyInvocation.MyCommand.Path)
 
 # Casting a hashtable to a class: https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_hash_tables?view=powershell-7#creating-objects-from-hash-tables
 $TestDefinition=[ATPBaselineCheck]@{
-    'Name'='Advanced Spam Filter (ASF)'
+    'Name'='Mark Bulk as Spam'
     'Control'=$MyFileName.BaseName
     'TestDefinitionFile'=$MyFileName.FullName
     'Area'='Content Filter Policies'

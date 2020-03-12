@@ -2,7 +2,7 @@
 Set-StrictMode -version latest
 Set-PSdebug -Strict
 [Version]$Script:TestATPBaselineVersion='1.0'
-[Version]$Script:BasedOnORCAVersion='1.3.2'
+[Version]$Script:BasedOnORCAVersion='1.4.5'
 $Script:PreloadedCommands=New-Object System.Collections.ArrayList
 
 <#
@@ -633,8 +633,9 @@ Function Test-ATPBaseline (
     if ($Script:TestDefinitions|Where-Object {($null -ne $_.TestResult) -and $_.TestResult.Count -gt 0}) {
         # Generate HTML Output
         Write-Progress -Activity $MainTitle -Status "Generating HTML output"
-        $Tenant=(($Script:AcceptedDomain | Where-Object {$_.InitialDomain -eq $True}).DomainName -split '\.')[0]
-        $HTMLReport=New-HtmlOutput -InputObject ($Script:TestDefinitions|Sort-Object Control) -TenantDomain $Tenant
+        $TenantDomain=($Script:AcceptedDomain | Where-Object {$_.InitialDomain -eq $True}).DomainName
+        $Tenant=($TenantDomain -split '\.')[0]
+        $HTMLReport=New-HtmlOutput -InputObject ($Script:TestDefinitions|Sort-Object Control) -TenantDomain $TenantDomain
 
         # Write to file
         If([string]::IsNullOrEmpty($OutputPath)) {
