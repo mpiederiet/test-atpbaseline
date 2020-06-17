@@ -7,6 +7,7 @@ $TestDefinition=[ATPBaselineCheck]@{
     'Name'='Microsoft Azure Cosmos DB Advanced Threat Protection'
     'Control'=$MyFileName.BaseName
     'TestDefinitionFile'=$MyFileName.FullName
+    'Services'=[BaseLineCheckServices]::AzureATP
     'Area'='Microsoft Azure Cosmos DB ATP'
     'PassText'='Azure ATP is enabled for all Cosmos DB instances.'
     'FailRecommendation'='Enable Azure ATP for your Cosmos DB instances.'
@@ -31,26 +32,26 @@ ForEach ($Subscription in $Script:SubscriptionsToCheck) {
     ForEach($CosmosDB in $CosmosDBs) {
         $AzureATP=Get-AzSecurityAdvancedThreatProtection -ResourceId $CosmosDB.ResourceId -ErrorAction SilentlyContinue
         if ($null -ne $AzureATP -and $AzureATP.IsEnabled) {
-            $Null=$Return.Add([PSCustomObject][Ordered]@{
+            $Null=$Return.Add([Ordered]@{
                 'Azure Cosmos DB'="$($Subscription.Name)/$($CosmosDB.ResourceGroupName)/$($CosmosDB.Name)"
                 'ATP'='Enabled'
-                'Result'='Pass'
+                '__Level'=[BaseLineCheckLevel]::Standard
             })
        } Else {
-            $Null=$Return.Add([PSCustomObject][Ordered]@{
+            $Null=$Return.Add([Ordered]@{
                 'Azure Cosmos DB'="$($Subscription.Name)/$($CosmosDB.ResourceGroupName)/$($CosmosDB.Name)"
                 'ATP'='Disabled'
-                'Result'='Fail'
+                '__Level'=[BaseLineCheckLevel]::None
             })
         }
     }   
 }
 
 if($Return.Count -eq 0) {
-    $Null=$Return.Add([PSCustomObject][Ordered]@{
+    $Null=$Return.Add([Ordered]@{
         'Azure Cosmos DB'='No Azure Cosmos DB instances found'
         'ATP'='No Azure Cosmos DB instances found'
-        'Result'='Pass'
+        '__Level'=[BaseLineCheckLevel]::Standard
     })
 }
 

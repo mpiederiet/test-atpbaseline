@@ -6,6 +6,7 @@ $TestDefinition=[ATPBaselineCheck]@{
     'Name'='Microsoft Defender Advanced Threat Protection Baseline'
     'Control'=$MyFileName.BaseName
     'TestDefinitionFile'=$MyFileName.FullName
+    'Services'=[BaseLineCheckServices]::DefenderATP
     'Area'='Microsoft Defender ATP Baseline'
     'PassText'='You have created at least one Microsoft Defender ATP Baseline policy.'
     'FailRecommendation'='Create an Intune security baseline based on the Microsoft Defender ATP Baseline template.'
@@ -29,7 +30,7 @@ Function Get-DefenderATPPolicies {
             $ATPTemplateID=$Template.id
             $ATPPolicies=($deviceManagement_intents | Where-Object {$_.templateId -eq $ATPTemplateID})
             ForEach ($ATPPolicy in $ATPPolicies) {
-                $Null=$Result.Add([PSCustomObject][Ordered]@{
+                $Null=$Result.Add([Ordered]@{
                     'Name'=$ATPPolicy.displayName
                 })
             }
@@ -41,18 +42,18 @@ Function Get-DefenderATPPolicies {
 $DefenderATPPolicies=Get-DefenderATPPolicies
 
 ForEach($Policy in $DefenderATPPolicies) {
-    $Null=$Return.Add([PSCustomObject][Ordered]@{
+    $Null=$Return.Add([Ordered]@{
         'Defender ATP Policy'=$Policy.Name
         'Finding'="Policy is based on the Microsoft Defender ATP Baseline"
-        'Result'='Pass'
+        '__Level'=[BaseLineCheckLevel]::Standard
     })
 }
 
 if($Return.Count -eq 0) {
-    $Null=$Return.Add([PSCustomObject][Ordered]@{
+    $Null=$Return.Add([Ordered]@{
         'Defender ATP Policy'='No Baseline policies defined'
         'Finding'='No Baseline policies defined'
-        'Result'='Fail'
+        '__Level'=[BaseLineCheckLevel]::None
     })
 }
 

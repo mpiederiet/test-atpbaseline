@@ -7,6 +7,7 @@ $TestDefinition=[ATPBaselineCheck]@{
     'Name'='Microsoft Azure SQL DB Advanced Threat Protection'
     'Control'=$MyFileName.BaseName
     'TestDefinitionFile'=$MyFileName.FullName
+    'Services'=[BaseLineCheckServices]::AzureATP
     'Area'='Microsoft Azure SQL DB ATP'
     'PassText'='Azure ATP is enabled for all SQL DB instances.'
     'FailRecommendation'='Enable Azure ATP for your SQL DB instances.'
@@ -34,26 +35,26 @@ ForEach ($Subscription in $Script:SubscriptionsToCheck) {
         $AzureATP=Get-AzSqlDatabaseAdvancedThreatProtectionSetting -DatabaseName $DatabaseName -servername $ServerName -ResourceGroupName $SQLDB.ResourceGroupName
         
         if ($null -ne $AzureATP -and $AzureATP.ThreatDetectionState -eq 'Enabled') {
-            $Null=$Return.Add([PSCustomObject][Ordered]@{
+            $Null=$Return.Add([Ordered]@{
                 'Azure SQL DB'="$($Subscription.Name)/$($SQLDB.ResourceGroupName)/$($SQLDB.Name)"
                 'ATP'='Enabled'
-                'Result'='Pass'
+                '__Level'=[BaseLineCheckLevel]::Standard
             })
        } Else {
-            $Null=$Return.Add([PSCustomObject][Ordered]@{
+            $Null=$Return.Add([Ordered]@{
                 'Azure SQL DB'="$($Subscription.Name)/$($SQLDB.ResourceGroupName)/$($SQLDB.Name)"
                 'ATP'='Disabled'
-                'Result'='Fail'
+                '__Level'=[BaseLineCheckLevel]::None
             })
         }
     }   
 }
 
 if($Return.Count -eq 0) {
-    $Null=$Return.Add([PSCustomObject][Ordered]@{
+    $Null=$Return.Add([Ordered]@{
         'Azure SQL DB'='No Azure SQL DB instances found'
         'ATP'='No Azure SQL DB instances found'
-        'Result'='Pass'
+        '__Level'=[BaseLineCheckLevel]::Standard
     })
 }
 

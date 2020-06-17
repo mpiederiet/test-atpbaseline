@@ -6,6 +6,7 @@ $TestDefinition=[ATPBaselineCheck]@{
     'Name'='Use Microsoft Defender Advanced Threat Protection Baseline defaults'
     'Control'=$MyFileName.BaseName
     'TestDefinitionFile'=$MyFileName.FullName
+    'Services'=[BaseLineCheckServices]::DefenderATP
     'Area'='Microsoft Defender ATP Baseline'
     'PassText'='All settings are configured as by the recommended defaults.'
     'FailRecommendation'='Please ensure you are using the recommended default settings. Check the changed settings and correct them where necessary.'
@@ -54,29 +55,29 @@ ForEach($Policy in $DefenderATPPolicies) {
         ForEach ($SettingDiff in ($SettingsDiff | Where-Object {$_.SideIndicator -eq '=>'})) {
             $ThisPolicyOK=$False
             $ReadableDefinitionId=$SettingDiff.definitionId -replace 'deviceConfiguration--','' -replace '_','/'
-            $Null=$Return.Add([PSCustomObject][Ordered]@{
+            $Null=$Return.Add([Ordered]@{
                 'Defender ATP Policy'=$Policy.Name
                 'Setting'="$($ReadabledefinitionId)"
                 'Default value'=$DefaultBaselineLookup[$SettingDiff.definitionId]
                 'Set Value'=$SettingDiff.valueJson
-                'Result'='Fail'
+                '__Level'=[BaseLineCheckLevel]::None
             })
         }
     }
     if ($ThisPolicyOK) {
-        $Null=$Return.Add([PSCustomObject][Ordered]@{
+        $Null=$Return.Add([Ordered]@{
             'Defender ATP Policy'=$Policy.Name
             'Finding'='No settings have been changed from the recommended baseline'
-            'Result'='Pass'
+            '__Level'=[BaseLineCheckLevel]::Standard
         })    
     }
 }
 
 if($Return.Count -eq 0) {
-    $Null=$Return.Add([PSCustomObject][Ordered]@{
+    $Null=$Return.Add([Ordered]@{
         'Defender ATP Policy'='No Baseline policies defined'
         'Finding'='No Baseline policies defined'
-        'Result'='Fail'
+        '__Level'=[BaseLineCheckLevel]::None
     })
 }
 

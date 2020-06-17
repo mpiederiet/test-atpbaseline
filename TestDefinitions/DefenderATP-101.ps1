@@ -6,6 +6,7 @@ $TestDefinition=[ATPBaselineCheck]@{
     'Name'='Assign Microsoft Defender Advanced Threat Protection Baseline'
     'Control'=$MyFileName.BaseName
     'TestDefinitionFile'=$MyFileName.FullName
+    'Services'=[BaseLineCheckServices]::DefenderATP
     'Area'='Microsoft Defender ATP Baseline'
     'PassText'='You have assigned at least one Microsoft Defender ATP Baseline policy to at least one device.'
     'FailRecommendation'='Assign Intune Microsoft Defender ATP security baselines to your devices.'
@@ -50,25 +51,25 @@ ForEach($Policy in $DefenderATPPolicies) {
         } Else {
             $AssignmentsWord='assignments'
         }
-        $Null=$Return.Add([PSCustomObject][Ordered]@{
+        $Null=$Return.Add([Ordered]@{
             'Defender ATP Policy'=$Policy.Name
             'Assignments'="Policy has $($Policy.Assignments.Count) $AssignmentsWord"
-            'Result'='Pass'
+            '__Level'=[BaseLineCheckLevel]::Standard
         })
     } Else {
-        $Null=$Return.Add([PSCustomObject][Ordered]@{
+        $Null=$Return.Add([Ordered]@{
             'Defender ATP Policy'=$Policy.Name
             'Assignments'='Policy has no assignments'
-            'Result'='Fail'
+            '__Level'=[BaseLineCheckLevel]::None
         })
     }
 }
 
 if($Return.Count -eq 0) {
-    $Null=$Return.Add([PSCustomObject][Ordered]@{
+    $Null=$Return.Add([Ordered]@{
         'Defender ATP Policy'='No Baseline policies defined'
         'Finding'='No Baseline policies defined'
-        'Result'='Fail'
+        '__Level'=[BaseLineCheckLevel]::None
     })
 }
 

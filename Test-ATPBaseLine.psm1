@@ -1,9 +1,37 @@
 #Requires -Module 'PackageManagement','DnsClient','PowerShellGet'
 Set-StrictMode -version latest
 Set-PSdebug -Strict
-[Version]$Script:TestATPBaselineVersion='1.0'
-[Version]$Script:BasedOnORCAVersion='1.4.5'
+[Version]$Script:TestATPBaselineVersion='1.2'
 $Script:PreloadedCommands=New-Object System.Collections.ArrayList
+
+# BaseLineCheckService
+# Indicates the service(s) the check was applied to
+[Flags()]
+enum BaseLineCheckService
+{
+    EOP = 1
+    OfficeATP = 2
+    AzureATP = 4
+    DefenderATP = 8
+}
+
+# BaseLineCheckLevel
+# Indicates the level of "Pass" items (Informational, Standard, Strict). Failed items have level "None"
+enum BaseLineCheckLevel {
+    None = 0
+    Informational = 4
+    Standard = 5
+    Strict = 10
+    TooStrict = 15
+}
+
+# BaseLineCheckResult
+# Indicates the result of the check
+enum BaseLineCheckResult {
+    Fail = 0
+    Informational = 1
+    Pass = 2
+}
 
 <#
     ATPBaseLineCheck definition
@@ -24,19 +52,45 @@ Class ATPBaselineCheck {
     [String]$Name
     [String]$Control
     [String]$TestDefinitionFile
+    [BaseLineCheckService]$Services
     [String]$Area
     [String]$PassText
     [String]$FailRecommendation
     [String]$Importance
-    [object[]]$TestResult
+    [System.Collections.Specialized.OrderedDictionary[]]$TestResult
     [HashTable]$Links
     ATPBaselineCheck () {
+        # Add a Dynamically generated property to the class
         Add-Member -InputObject $This -MemberType 'ScriptProperty' -Name 'CheckResult' -Value {
             # If there are no testresults, or it is a single boolean '$False', or when at least one 'Fail' entry is present, mark the test as failed
-            if (($this.TestResult.Count -eq 0) -or ($this.TestResult[0] -is [bool] -and -not $This.TestResult[0]) -or ($this.TestResult|Where-Object{($null -ne $_ -and $Null -ne $_.PSObject.Properties['Result'] -and $_.Result -eq 'Fail')})) {
-                return 'Fail'
+            $FailCount=0
+            $PassCount=0
+            $InfoCount=0
+            if ($this.TestResult.Count -eq 0) {
+                # No test results, mark as failed
+                $FailCount=1
+            } Elseif ($this.TestResult[0]['__TestResult'] -is [bool]) {
+                # Test result is a single bool value, check it whether it was a pass or fail
+                if (-not $This.TestResult[0]['__TestResult']) {
+                    $FailCount=1
+                } Else {
+                    $PassCount=1
+                }
             } Else {
-                return 'Pass'
+                # Check the test results for Pass/Fail/Informational items
+                $FailCount = @($this.TestResult | Where-Object {$_['__Level'] -eq [BaseLineCheckLevel]::None}).Count
+                $PassCount = @($this.TestResult | Where-Object {$_['__Level'] -eq [BaseLineCheckLevel]::Standard -or $_['__Level'] -eq [BaseLineCheckLevel]::Strict}).Count
+                $InfoCount = @($this.TestResult | Where-Object {$_['__Level'] -eq [BaseLineCheckLevel]::Informational}).Count
+            }
+    
+            If ($FailCount -eq 0) {
+                if ($InfoCount -eq 0) {
+                    return [BaseLineCheckResult]::Pass
+                } Else {
+                    return [BaseLineCheckResult]::Informational
+                }
+            } Else {
+                return [BaseLineCheckResult]::Fail
             }
         }
     }
@@ -44,15 +98,6 @@ Class ATPBaselineCheck {
 
 function Add-TestDefinition ($TestDefinition) {
     $Null=$Script:TestDefinitions.Add($TestDefinition)
-}
-
-function Test-ORCAVersion {
-    # Check the Gallery version of ORCA
-    Write-Debug "Performing ORCA Version check"
-
-    $PSGalleryVersion=(Find-Module ORCA -Repository PSGallery -ErrorAction:SilentlyContinue -WarningAction:SilentlyContinue -Verbose:$False).Version
-
-    Return $PSGalleryVersion
 }
 
 # Helper function used in TestDefinition files
@@ -218,8 +263,9 @@ Function New-HtmlOutput {
     $ReportDate=$(Get-Date -format 'dd-MMM-yyyy HH:mm')
 
     # Summary
-    $RecommendationCount=($InputObject | Where-Object {$_.CheckResult -eq 'Fail'}|Measure-Object).Count
-    $OKCount=($InputObject | Where-Object {$_.CheckResult -eq 'Pass'}|Measure-Object).Count
+    $RecommendationCount=($InputObject | Where-Object {$_.CheckResult -eq [BaseLineCheckResult]::Fail}|Measure-Object).Count
+    $OKCount=($InputObject | Where-Object {$_.CheckResult -eq [BaseLineCheckResult]::Pass}|Measure-Object).Count
+    $InfoCount=($InputObject | Where-Object {$_.CheckResult -eq [BaseLineCheckResult]::Informational}|Measure-Object).Count
 
     # Misc
     $ReportTitle='Office 365 ATP Recommended Configuration Analyzer Report'
@@ -324,15 +370,47 @@ Function New-HtmlOutput {
                     <div class='card-body'>
                         <h2 class='card-title'>$($ReportTitle)</h5>
                         <strong>Version $($TestATPBaselineVersion.ToString())</strong>
-                        <p>This report details any tenant configuration changes recommended within your tenant.</p>
+                        <p>This report details any tenant configuration changes recommended within your tenant.</p>`r`n
+"@
+
+    # If EOP services are tested, check whether OfficeATP was also found
+    If((([BaseLineCheckService]$InputObject.Services) -band [BaseLineCheckService]::EOP) -and -not (([BaseLineCheckService]$InputObject.Services) -band [BaseLineCheckService]::OfficeATP)) {
+        $Output+=@"
+                        <div class='alert alert-danger pt-2' role='alert'>
+                            <p>Office Advanced Threat Protection (ATP) was <strong>NOT</strong> detected on this tenant. <strong>The purpose of Test-ATPBaseLine/ORCA is to check for Office ATP recommended configuration</strong> - <i>however, these checks will be skipped. Other results should be relevant to base EOP configuration.</i></p>
+                            <p>Consider Office Advanced Threat Protection for:<ul><li>Automatic incident response capabilities</li><li>Attack simulation capabilities</li><li>Behavioural analysis (sandboxing) of malware</li><li>Time of click protection against URLs</li><li>Advanced anti-phishing controls</li></ul></p>
+                        </div>`r`n
+"@
+    }
+
+    $Output+=@"
                     </div>
                 </div>`r`n
 "@
+
+
+
     <#
         OUTPUT GENERATION / Summary cards
     #>
     $Output+=@"
-                <div class='row p-3'>
+                <div class='row p-3'>`r`n
+"@
+
+    if($InfoCount -gt 0) {
+        $Output+=@"
+                    <div class='col d-flex justify-content-center text-center'>
+                        <div class='card text-white bg-secondary mb-3' style='width: 18rem;'>
+                            <div class='card-header'><h5>Informational</h5></div>
+                            <div class='card-body'>
+                                <h2>$($InfoCount)</h2>
+                            </div>
+                        </div>
+                    </div>`r`n
+"@
+    }
+
+$Output+=@"
                     <div class='col d-flex justify-content-center text-center'>
                         <div class='card text-white bg-warning mb-3' style='width: 18rem;'>
                             <div class='card-header'><h5>Recommendations</h5></div>
@@ -363,8 +441,9 @@ Function New-HtmlOutput {
 "@
 
     ForEach($Area in ($InputObject | Group-Object Area)) {
-        $Pass=@($Area.Group | Where-Object {$_.CheckResult -eq 'Pass'}).Count
-        $Fail=@($Area.Group | Where-Object {$_.CheckResult -ne 'Pass'}).Count
+        $Pass=@($Area.Group | Where-Object {$_.CheckResult -eq [BaseLineCheckResult]::Pass}).Count
+        $Fail=@($Area.Group | Where-Object {$_.CheckResult -eq [BaseLineCheckResult]::Fail}).Count
+        $Info=@($Area.Group | Where-Object {$_.CheckResult -eq [BaseLineCheckResult]::Informational}).Count
         $Icon=$AreaIcon[$Area.Name]
         If($Null -eq $Icon) { $Icon=$AreaIcon["Default"]}
 
@@ -373,8 +452,9 @@ Function New-HtmlOutput {
                                 <td width='20'><i class='$Icon'></i>
                                 <td><a href='`#$($Area.Name)'>$($Area.Name)</a></td>
                                 <td align='right'>
-                                <span class='badge badge-warning' style='padding:15px'>$($Fail)</span>
-                                <span class='badge badge-success' style='padding:15px'>$($Pass)</span>
+                                    <span class='badge badge-secondary' style='padding:15px;text-align:center;width:40px;$(if($Info -eq 0) { "opacity: 0.1;" })'>$($Info)</span>
+                                    <span class='badge badge-warning' style='padding:15px;text-align:center;width:40px;$(if($Fail -eq 0) { "opacity: 0.1;" })'>$($Fail)</span>
+                                    <span class='badge badge-success' style='padding:15px;text-align:center;width:40px;$(if($Pass -eq 0) { "opacity: 0.1;" })'>$($Pass)</span>
                                 </td>
                             </tr>`r`n
 "@
@@ -403,12 +483,19 @@ Function New-HtmlOutput {
             $Output+=@"
                         <h4>$($Check.Name)</h4>`r`n
 "@
-            If($Check.CheckResult -eq 'Pass') {
+
+            If($Check.CheckResult -eq [BaseLineCheckResult]::Pass) {
                 $CalloutType='bd-callout-success'
                 $BadgeType='badge-success'
                 $BadgeName='OK'
                 $Icon='fas fa-thumbs-up'
                 $Title=$Check.PassText
+            } ElseIf ($Check.CheckResult -eq [BaseLineCheckResult]::Informational) {
+                $CalloutType='bd-callout-secondary'
+                $BadgeType='badge-secondary'
+                $BadgeName='Informational'
+                $Icon='fas fa-thumbs-up'
+                $Title=$Check.FailRecommendation
             } Else {
                 $CalloutType='bd-callout-warning'
                 $BadgeType='badge-warning'
@@ -435,9 +522,9 @@ Function New-HtmlOutput {
 
             }
             $TestBool=$False
-            If([bool]::TryParse($Check.TestResult,[ref]$TestBool) -ne $True) {
+            If([bool]::TryParse($Check.TestResult[0]['__TestResult'],[ref]$TestBool) -ne $True) {
                 # make a new table for each object type in the test result set
-                $GroupedByColumnHeader=$Check.TestResult | Group-Object {(([array]($_.PSObject.Properties))[0]).Name},{(([array]($_.PSObject.Properties))[1]).Name}
+                $GroupedByColumnHeader=$Check.TestResult | Group-Object {([string[]]$_.Keys)[0]},{([string[]]$_.Keys)[1]}
                 $Output+=@"
                                 <h6>Effected objects</h6>
                                 <div class='row pl-2 pt-3'>`r`n
@@ -445,15 +532,16 @@ Function New-HtmlOutput {
                 ForEach ($ColumnGroup in $GroupedByColumnHeader) {
                     # We should expand the results by showing a table of Config Data and Items
                     # First, determine the number of properties. 'Result' is assumed to always be present and is the last column of the table
-                    $ColumnCount=([array]($ColumnGroup.Group[0].psobject.properties)|Where-Object {$_.MemberType -eq 'NoteProperty'}).count
+                    $ColumnHeaders=[string[]]($ColumnGroup.group[0].keys|Where-Object{$_ -notmatch '^__.*$'})
+                    $ColumnCount=$ColumnHeaders.count
                     $Output+=@"
                                     <table class='table'>
                                         <thead class='border-bottom'>
                                             <tr>`r`n
 "@
-                    0..($ColumnCount-2)|ForEach-Object{
+                    0..($ColumnCount-1)|ForEach-Object{
                         $Output+=@"
-                                                <th>$(([array]($ColumnGroup.Group[0].PSObject.Properties))[$_].Name)</th>`r`n
+                                                <th>$($ColumnHeaders[$_])</th>`r`n
 "@
                     }
                     $Output+=@"
@@ -463,23 +551,55 @@ Function New-HtmlOutput {
                                         <tbody>`r`n
 "@
                     ForEach($o in $ColumnGroup.Group) {
-                        if($o.Result -eq "Pass") {
-                            $oicon="fas fa-check-circle text-success"
-                        } Else{
-                            $oicon="fas fa-times-circle text-danger"
+                        switch ($o['__Level']) {
+                            {$_ -notin ([BaseLineCheckLevel]::None,[BaseLineCheckLevel]::Informational)} {
+                                $oicon="fas fa-check-circle text-success"
+                                $levelText=$_.ToString()
+                                break;
+                            }
+                            {$_ -eq [BaseLineCheckLevel]::Informational} {
+                                $oicon="fas fa-info-circle text-muted"
+                                $levelText=$_.ToString()
+                                break;                                
+                            }
+                            default {
+                                $oicon="fas fa-times-circle text-danger"
+                                $levelText='Not recommended'
+                                break;
+                            }
                         }
                         $Output+=@"
                                             <tr>`r`n
 "@
-                        0..($ColumnCount-2)|ForEach-Object{
+                        $ColumnValues=$ColumnHeaders.ForEach({[string]$o[$_]})
+                        0..($ColumnCount-1)|ForEach-Object{
                             $Output+=@"
-                                                <td>$(([array]($o.PSObject.Properties))[$_].Value)</td>`r`n
+                                                <td>$($ColumnValues[$_])</td>`r`n
 "@
                         }
                         $Output+=@"
-                                                <td><i class='$($oicon)'></i></td>
+                                                <td style='text-align:right'>
+                                                    <div class='row badge badge-pill badge-light'>
+                                                        <span style='vertical-align: middle;'>$($LevelText)</span>
+                                                        <span class='$($oicon)' style='vertical-align: middle;'></span>
+                                                    </div>
+                                                </td>                                                
                                             </tr>`r`n
 "@
+
+                        # Informational segment
+                        if($o['__Level'] -eq [BaseLineCheckLevel]::Informational) {
+                            $Output+=@"
+                                            <tr>
+                                                <td colspan='$($ColumnCount+1)' style='border: 0;'>
+                                                    <div class='alert alert-light' role='alert' style='text-align: right;'>
+                                                        <span class='fas fa-info-circle text-muted' style='vertical-align: middle; padding-right:5px'></span>
+                                                        <span style='vertical-align: middle;'>$($o['__InfoText'])</span>
+                                                    </div>
+                                                </td>
+                                            </tr>`r`n
+"@
+                        }
                     }
                     $Output+=@"
                                         </tbody>
@@ -550,15 +670,9 @@ Function Test-ATPBaseline (
     })]
     [System.IO.FileInfo]$InputPath) {
     $MainTitle='ATP Baseline Test'
+    $Script:TenantDomain=''
 
     $Script:TestDefinitions=New-Object System.Collections.ArrayList
-
-    # The ORCA checks in this module are based on the ORCA PSGallery module. If there is a newer version available, make sure that the definitions used are kept up to date by the author ;-)
-    Write-Progress -Activity $MainTitle -Status 'Checking ORCA version'
-    $ORCAGalleryVersion=Test-ORCAVersion
-    If ($ORCAGalleryVersion -gt $BasedOnORCAVersion) {
-        Write-Warning "The definitions in this module are based on ORCA version $BasedOnORCAVersion. However there seems to be a newer ORCA module $($ORCAGalleryVersion). Please check whether there is an update for this module too."
-    }
 
     if (-not [string]::IsNullOrEmpty($InputPath) -and (Test-Path $InputPath)) {
         Write-Progress -Activity $MainTitle -Status "Loading inputfile $InputPath"
@@ -577,30 +691,49 @@ Function Test-ATPBaseline (
         }
     } Else {
         Write-Progress -Activity $MainTitle -Status "Checking for test definitions in TestDefitinions folder"
-        $FilesInTestDefinitionFolder=Get-ChildItem '.\TestDefinitions\*.ps1'|Select-Object -Expand FullName
+        $FilesInTestDefinitionFolder=@(Get-ChildItem '.\TestDefinitions\*.ps1'|Select-Object -Expand FullName)
         Write-Verbose "$(Get-Date) TestDefinitions folder has $($FilesInTestDefinitionFolder.Count) test definition files"
 
         Write-Progress -Activity $MainTitle -Status "Looking for commands to preload"
         # Parse the headers of the .ps1 files, look for #InputRequired and a comma-delimited list of Module:Command to be preloaded
-        $RegExCmdletMatches=(Select-String -Pattern '^#InputRequired ([''"]?(?<module>[a-zA-Z0-9]+):(?<command>[a-zA-Z0-9/]+)[''"]?(?:,[''"]?(?<module>[a-zA-Z0-9]+):(?<command>[a-zA-Z0-9/]+)[''"]?)*)' $FilesInTestDefinitionFolder|Select-Object -Expand matches)
-        $CommandsGroupedByModule=$RegExCmdletMatches|Group-Object {$_.Groups['module'].Value}
         $CommandsToPreload=@{}
-        ForEach ($Module in $CommandsGroupedByModule) {
-            $CommandsToPreLoad[$Module.Name]=$Module.Group|ForEach-Object{$_.Groups['command'].Captures.Value -Replace '[''"]','' -Split ','}|Select-Object -Unique
+        if ($FilesInTestDefinitionFolder.Count -gt 0) {
+            $RegExCmdletMatches=(Select-String -Pattern '^#InputRequired ([''"]?(?<module>[a-zA-Z0-9]+):(?<command>[a-zA-Z0-9/]+)[''"]?(?:,[''"]?(?<module>[a-zA-Z0-9]+):(?<command>[a-zA-Z0-9/]+)[''"]?)*)' $FilesInTestDefinitionFolder|Select-Object -Expand matches)
+            $CommandsGroupedByModule=$RegExCmdletMatches|Group-Object {$_.Groups['module'].Value}
+            ForEach ($Module in $CommandsGroupedByModule) {
+                $CommandsToPreLoad[$Module.Name]=$Module.Group|ForEach-Object{$_.Groups['command'].Captures.Value -Replace '[''"]','' -Split ','}|Select-Object -Unique
+            }
         }
 
         # Now connect to the specified modules before preloading the commands
         $FatalError=$False
-        Write-Progress -Activity $MainTitle -Status "Connecting external modules" -PercentComplete 0
+        Write-Progress -Activity $MainTitle -Status "Connecting modules" -PercentComplete 0
         $Current=0
         ForEach ($Module in ($CommandsToPreload.Keys|Sort-Object)) {
-            Write-Progress -Activity $MainTitle -Status "Connecting external modules [$($Current+1) of $($CommandsToPreLoad.Count)]" -CurrentOperation "Connecting to module $Module" -PercentComplete ([int](($Current/$CommandsToPreLoad.Count)*100))
+            Write-Progress -Activity $MainTitle -Status "Connecting modules [$($Current+1) of $($CommandsToPreLoad.Count)]" -CurrentOperation "Connecting to module $Module" -PercentComplete ([int](($Current/$CommandsToPreLoad.Count)*100))
             $ConnectModulePath=".\ConnectModules\$($Module).ps1"
             if (Test-Path $ConnectModulePath) {
                 Write-Debug "Importing $Module module file: $ConnectModulePath"
                 . $ConnectModulePath
             } Else {
                 Write-Error "Could not load connect module $ConnectModulePath. Exiting because of non-recoverable error."
+                $FatalError=$True
+            }
+            $Current++
+        }
+
+        Write-Progress -Activity $MainTitle -Status 'Connecting external modules' -PercentComplete 0
+        $Current=0
+        $ConnectModulePath='.\ExternalModuleCalls'
+        $ExternalModulesToLoad=@(Get-ChildItem (Join-Path $ConnectModulePath '*.ps1'))
+        ForEach ($ExternalModule in $ExternalModulesToLoad) {
+            Write-Progress -Activity $MainTitle -Status "Connecting external modules [$($Current+1) of $($ExternalModulesToLoad.Count)]" -CurrentOperation "Connecting to module $($ExternalModule.BaseName)" -PercentComplete ([int](($Current/$ExternalModulesToLoad.Count)*100))
+
+            if (Test-Path $ExternalModule.FullName) {
+                Write-Debug "Importing $($ExternalModule.BaseName) module file: $($ExternalModule.FullName)"
+                . $ExternalModule.FullName
+            } Else {
+                Write-Error "Could not load connect module $($ExternalModule.FullPath). Exiting because of non-recoverable error."
                 $FatalError=$True
             }
             $Current++
@@ -618,6 +751,16 @@ Function Test-ATPBaseline (
                 $Current++
             }
 
+            # Run the external modules
+            Write-Progress -Activity $MainTitle -Status "Executing external modules" -PercentComplete 0
+            $Current=0
+            ForEach ($ExternalModule in $ExternalModulesToLoad) {
+                Write-Progress -Activity $MainTitle -Status "Executing external modules [$($Current+1) of $($ExternalModulesToLoad.Count)]" -CurrentOperation "Invoking module $($ExternalModule.BaseName)" -PercentComplete ([int](($Current/$ExternalModulesToLoad.Count)*100))
+                Write-Debug "Invoking external module: $($ExternalModule.BaseName)"
+                . "Invoke-$($ExternalModule.BaseName)Module"
+                $Current++
+            }            
+
             # Run the defined tests
             Write-Progress -Activity $MainTitle -Status "Executing test scripts" -PercentComplete 0
             $Current=0
@@ -633,7 +776,9 @@ Function Test-ATPBaseline (
     if ($Script:TestDefinitions|Where-Object {($null -ne $_.TestResult) -and $_.TestResult.Count -gt 0}) {
         # Generate HTML Output
         Write-Progress -Activity $MainTitle -Status "Generating HTML output"
-        $TenantDomain=($Script:AcceptedDomain | Where-Object {$_.InitialDomain -eq $True}).DomainName
+        if ([string]::IsNullOrEmpty($TenantDomain)) {
+            $TenantDomain='<<unknown>>'
+        }
         $Tenant=($TenantDomain -split '\.')[0]
         $HTMLReport=New-HtmlOutput -InputObject ($Script:TestDefinitions|Sort-Object Control) -TenantDomain $TenantDomain
 

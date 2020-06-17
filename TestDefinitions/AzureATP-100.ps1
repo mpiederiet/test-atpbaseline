@@ -7,6 +7,7 @@ $TestDefinition=[ATPBaselineCheck]@{
     'Name'='Microsoft Azure Storage Advanced Threat Protection'
     'Control'=$MyFileName.BaseName
     'TestDefinitionFile'=$MyFileName.FullName
+    'Services'=[BaseLineCheckServices]::AzureATP
     'Area'='Microsoft Azure Storage ATP'
     'PassText'='Azure ATP is enabled for all storage blobs.'
     'FailRecommendation'='Enable Azure ATP for your storage blobs.'
@@ -31,26 +32,26 @@ ForEach ($Subscription in $Script:SubscriptionsToCheck) {
     ForEach($StorageBlob in $AzureStorageBlobs) {
         $AzureATP=Get-AzSecurityAdvancedThreatProtection -ResourceId $StorageBlob.ResourceId -ErrorAction SilentlyContinue
         if ($null -ne $AzureATP -and $AzureATP.IsEnabled) {
-            $Null=$Return.Add([PSCustomObject][Ordered]@{
+            $Null=$Return.Add([Ordered]@{
                 'Azure Storage Blob'="$($Subscription.Name)/$($StorageBlob.ResourceGroupName)/$($StorageBlob.Name)"
                 'ATP'='Enabled'
-                'Result'='Pass'
+                '__Level'=[BaseLineCheckLevel]::Standard
             })
        } Else {
-            $Null=$Return.Add([PSCustomObject][Ordered]@{
+            $Null=$Return.Add([Ordered]@{
                 'Azure Storage Blob'="$($Subscription.Name)/$($StorageBlob.ResourceGroupName)/$($StorageBlob.Name)"
                 'ATP'='Disabled'
-                'Result'='Fail'
+                '__Level'=[BaseLineCheckLevel]::None
             })
         }
     }   
 }
 
 if($Return.Count -eq 0) {
-    $Null=$Return.Add([PSCustomObject][Ordered]@{
+    $Null=$Return.Add([Ordered]@{
         'Azure Storage Blob'='No Azure storage blobs found'
         'ATP'='No Azure storage blobs found'
-        'Result'='Pass'
+        '__Level'=[BaseLineCheckLevel]::Standard
     })
 }
 
